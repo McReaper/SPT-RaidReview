@@ -19,11 +19,14 @@ public class RaidReviewMod : IOnLoad
     private readonly ISptLogger<RaidReviewMod> _sptLogger;
     private readonly SPTarkov.Server.Core.Services.Locales.LocaleService _localeService;
 
-    // The hourly cleanup's timer. Nothing else holds a System.Threading.Timer: kept in a local, it was reclaimed by the
-    // .NET garbage collector and stopped firing, so old raids were only purged when the server started.
-    private Timer? _hourlyCleanup;
+    // Old raids are purged at server start, then once a day while the server runs.
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromDays(1);
 
-    // Past server start, a raid in progress looks unfinished too: the hourly cleanup leaves an unfinished raid alone
+    // The daily cleanup's timer. Nothing else holds a System.Threading.Timer: kept in a local, it was reclaimed by the
+    // .NET garbage collector and stopped firing, so old raids were only purged when the server started.
+    private Timer? _dailyCleanup;
+
+    // Past server start, a raid in progress looks unfinished too: the daily cleanup leaves an unfinished raid alone
     // until it started longer ago than any raid lasts.
     private static readonly TimeSpan AbandonedAfter = TimeSpan.FromHours(3);
 
@@ -118,10 +121,10 @@ public class RaidReviewMod : IOnLoad
         var wsHandler = new WsPacketHandler(db, sessionManager, fileService, logger, itemResolver);
         wsHandler.SetPostProcessingCallbacks(StartPostProcessing, StopPostProcessing);
 
-        // Hourly garbage collection if configured
+        // Daily garbage collection if configured
         if (config.AutoDeleteCronJob)
         {
-            _hourlyCleanup = new Timer(async _ =>
+            _dailyCleanup = new Timer(async _ =>
             {
                 // An async timer callback that throws would take the whole server down.
                 try
@@ -131,9 +134,9 @@ public class RaidReviewMod : IOnLoad
                 }
                 catch (Exception ex)
                 {
-                    logger.Error("Hourly garbage collection failed", ex);
+                    logger.Error("Daily garbage collection failed", ex);
                 }
-            }, null, TimeSpan.FromHours(1), TimeSpan.FromHours(1));
+            }, null, CleanupInterval, CleanupInterval);
         }
 
         // Start the web server (HTTP + WebSocket) on background thread
