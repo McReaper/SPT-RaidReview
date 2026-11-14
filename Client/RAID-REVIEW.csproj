@@ -103,10 +103,20 @@
 		     Orbit_Integration class isolates all ORBIT-typed calls behind a
 		     Chainloader detection so the assembly is only loaded when ORBIT
 		     is installed. -->
-		<Reference Include="ORBIT">
+		<Reference Include="ORBIT" Condition="Exists('dependencies\4.1.X\ORBIT.dll')">
 			<HintPath>dependencies\4.1.X\ORBIT.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
+	</ItemGroup>
+
+	<!-- ORBIT.dll isn't publicly available. Without it, build the no-op stand-in instead:
+	     every Orbit_Integration call is gated on ORBIT__DETECTED, so this only matters for
+	     players who actually run ORBIT, who then get no ORBIT data in their recordings. -->
+	<ItemGroup Condition="!Exists('dependencies\4.1.X\ORBIT.dll')">
+		<Compile Remove="integrations\Orbit.cs" />
+	</ItemGroup>
+	<ItemGroup Condition="Exists('dependencies\4.1.X\ORBIT.dll')">
+		<Compile Remove="integrations\OrbitStub.cs" />
 	</ItemGroup>
 
 </Project>
